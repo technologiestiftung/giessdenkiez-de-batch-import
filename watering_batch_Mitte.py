@@ -9,6 +9,7 @@ import os
 import sys
 import logging
 import psycopg2
+import psycopg2.extras
 
 # set directory to dataset that contains watered trees
 dataset_directory = 'data/bewaesserung_mitte_05_2020.csv'
@@ -66,11 +67,9 @@ watered_trees = watered_trees.drop_duplicates('tree_id')
 # export watered trees
 watered_trees.to_csv('trees_watered_batch.csv', sep=",", index=False)
 
+values= watered_trees.values.tolist()
 
-exit()
-
-##### under construction
-
+# import data in db
 # setting up logging
 logging.basicConfig()
 LOGGING_MODE = None
@@ -91,7 +90,7 @@ else:
 load_dotenv()
 
 # check if all required environmental variables are accessible
-for env_var in ["PG_DB", "PG_PORT", "PG_USER", "PG_PASS", "PG_DB", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_BUCKET"]:
+for env_var in ["PG_DB", "PG_PORT", "PG_USER", "PG_PASS", "PG_DB"]:
   if env_var not in os.environ:
     logging.error("Environmental Variable {} does not exist".format(env_var))
 
@@ -108,3 +107,14 @@ try:
 except:
   logging.error("Could not establish database connection")
   conn = None
+
+with conn.cursor() as cur:
+  cur.execute("DELETE FROM public.trees_watered_batch;")
+  psycopg2.extras.execute_batch(
+    cur,
+    "INSERT INTO public.trees_watered_batch (tree_id, time, uuid, amount, timestamp, username) VALUES (%s, %s, %s, %s, %s, %s);",
+    values
+  )
+  conn.commit()
+        
+conn.close()
